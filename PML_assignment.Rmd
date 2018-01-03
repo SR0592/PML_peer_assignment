@@ -13,7 +13,7 @@ One thing that people regularly do is quantify how much of a particular activity
 ###Pre-processing the data
 
 
-```{r }
+```{r ,eval = FALSE}
 library(caret)
 library(parallel)
 library(doParallel)
@@ -26,6 +26,10 @@ library(IDPmisc)
 training_rmna<-NaRV.omit(pml_training)
 
 table(training_rmna$classe)
+
+#  A   B   C   D   E 
+# 109  79  70  69  79 
+
 ```
 
 
@@ -98,15 +102,50 @@ registerDoSEQ()
 #predict with validation data set
 rf_pred<-predict(rf_Fit, testing)
 confusionMatrix(rf_pred, testing$classe)
+# Confusion Matrix and Statistics
+# 
+#           Reference
+# Prediction    A    B    C    D    E
+#          A 1395    7    0    0    0
+#          B    0  937    5    0    0
+#          C    0    5  848   11    4
+#          D    0    0    2  791    1
+#          E    0    0    0    2  896
+# 
+# Overall Statistics
+#                                           
+#                Accuracy : 0.9925          
+#                  95% CI : (0.9896, 0.9947)
+#     No Information Rate : 0.2845          
+#     P-Value [Acc > NIR] : < 2.2e-16       
+#                                           
+#                   Kappa : 0.9905          
+#  Mcnemar's Test P-Value : NA              
+# 
+# Statistics by Class:
+# 
+#                      Class: A Class: B Class: C Class: D Class: E
+# Sensitivity            1.0000   0.9874   0.9918   0.9838   0.9945
+# Specificity            0.9980   0.9987   0.9951   0.9993   0.9995
+# Pos Pred Value         0.9950   0.9947   0.9770   0.9962   0.9978
+# Neg Pred Value         1.0000   0.9970   0.9983   0.9968   0.9988
+# Prevalence             0.2845   0.1935   0.1743   0.1639   0.1837
+# Detection Rate         0.2845   0.1911   0.1729   0.1613   0.1827
+# Detection Prevalence   0.2859   0.1921   0.1770   0.1619   0.1831
+# Balanced Accuracy      0.9990   0.9930   0.9934   0.9915   0.9970
+
 
 postResample(rf_pred, testing$classe)
+#  Accuracy     Kappa 
+# 0.9924551 0.9904551 
+
 
 testing$pred <- rf_pred==testing$classe
 qplot(classe, data=testing, main="Predictions") + facet_grid(pred ~ .)
 
 ```
 
-Accuracy is fine, predict 20 samples with the model.
+99,2% accuracy is fine, predict 20 samples with the model.
 
 ```{r, eval = FALSE}
 #clean up test data set
@@ -115,4 +154,7 @@ test_Data[,8:59]<-apply(test_Data[,8:59],2,function(x) as.numeric(as.character(x
 
 pred_outcome<-predict(rf_Fit,test_Data[,8:60])
 pred_outcome
+
+# [1] B A B A A E D B A A B C B A E E A B B B
+# Levels: A B C D E
 ```
