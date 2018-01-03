@@ -1,0 +1,118 @@
+---
+title: "PML_assignment"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+### Introdunction
+One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, your goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants.
+
+###Pre-processing the data
+
+
+```{r }
+library(caret)
+library(parallel)
+library(doParallel)
+
+setwd('~/Documents/coursera/machine learning/')
+pml_testing<-read.csv('pml-testing.csv')
+pml_training<-read.csv('pml-training.csv')
+
+library(IDPmisc)
+training_rmna<-NaRV.omit(pml_training)
+
+table(training_rmna$classe)
+```
+
+
+In the rows with full records, the distribution of different classes are basically even. But with only the 406 rows, it is not possible to impute the remaining 19216 values. Thus taken these rows into model training will not help significantly for improving prediction accuracy.
+Treat all missing values as NA, remove them and subseting the data table as following.
+
+
+
+```{r,eval = FALSE}
+
+pml_training<-apply(pml_training,2,function(x) gsub('#DIV/0!',NA,x))
+pml_training<-apply(pml_training,2,function(x) gsub('^$',NA,x))
+
+
+na_cols<- apply(pml_training,2,function(x) sum(is.na(x))>0)
+
+adData<-data.frame(pml_training)[,!na_cols]
+
+sum(anyNA(adData))
+
+adData[,8:59]<-apply(adData[,8:59],2,function(x) as.numeric(as.character(x)))
+
+
+set.seed(222)
+inTrain = createDataPartition(adData$classe, p = 3/4,list = F)
+
+training = adData[ inTrain,8:60]
+
+testing = adData[-inTrain,8:60]
+```
+
+
+Note that the first 7 columns are only recording infomation, model can be built on the remaining data.
+
+Testing variable importance:
+
+```{r, eval = FALSE}
+
+library(doMC)
+registerDoMC(cores = 6)
+set.seed(1)
+control <- rfeControl(functions=rfFuncs, method="cv", number=10)
+# run the RFE algorithm
+results <- rfe(training[,1:52], training[,53], sizes=c(1:53), rfeControl=control)
+# summarize the results
+print(results)
+# list the chosen features
+predictors(results)
+# plot the results
+plot(results, type=c("g", "o"))
+
+```
+
+Here can tell the top 5 variables contributing to >95% accuracy. But it will not hurt if take all the 53 variables into prediction.
+
+```{r, eval = FALSE}
+#apply multi-core to save computation time
+cluster <- makeCluster(detectCores() - 3) # convention to leave 1 core for OS
+registerDoParallel(cluster)
+
+fitControl <- trainControl(method = "cv",
+                           number = 5,
+                           allowParallel = TRUE)
+
+rf_Fit<-train(classe~.,method='rf',data=training, trControl=fitControl)
+
+stopCluster(cluster)
+registerDoSEQ()
+
+#predict with validation data set
+rf_pred<-predict(rf_Fit, testing)
+confusionMatrix(rf_pred, testing$classe)
+
+postResample(rf_pred, testing$classe)
+
+testing$pred <- rf_pred==testing$classe
+qplot(classe, data=testing, main="Predictions") + facet_grid(pred ~ .)
+
+```
+
+Accuracy is fine, predict 20 samples with the model.
+
+```{r, eval = FALSE}
+#clean up test data set
+test_Data<-data.frame(pml_testing)[,!na_cols]
+test_Data[,8:59]<-apply(test_Data[,8:59],2,function(x) as.numeric(as.character(x)))
+
+pred_outcome<-predict(rf_Fit,test_Data[,8:60])
+pred_outcome
+```
